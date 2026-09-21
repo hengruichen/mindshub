@@ -1,30 +1,39 @@
-# MindsDB Security Policy
+# Security Policy
 
-At MindsDB, we consider the security of our systems a top priority. However, no matter how much effort we put into system security, there can still be vulnerabilities present.
-Supported Versions
+## Reporting a Vulnerability
 
-MindsDB only offers security patches for the following versions
+If you discover a security vulnerability in MindsDB, please report it to us as soon as possible. We take all security vulnerabilities seriously and will work with you to address the issue promptly.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| >=23.6.1.1  | :white_check_mark: |
+To report a vulnerability, please send an email to [security@mindsdb.com](mailto:security@mindsdb.com) with the following information:
 
-### Reporting a Vulnerability
+- A detailed description of the vulnerability.
+- Steps to reproduce the vulnerability.
+- Any potential impact of the vulnerability.
+- Any suggested fixes or workarounds.
 
-If you discover a security vulnerability, we appreciate your efforts to responsibly disclose your findings by sending an email to hello@mindsdb.com, providing as much detail as you can. Please do not publicly disclose these details without express consent from us.
+We will acknowledge your report within 48 hours and will work with you to address the issue. We will keep you informed of the progress of the investigation and will provide you with updates as appropriate.
 
-Upon receiving your email, our security team will assess and respond to your report. We strive to keep all communication channels open with you to address your report effectively.
-Disclosure Policy
+## Responsible Disclosure
 
-Once we have received and evaluated your vulnerability report, MindsDB commits to:
+We appreciate the efforts of security researchers and other individuals who help us improve the security of MindsDB. We encourage you to report any security vulnerabilities you discover to us in a responsible and timely manner.
 
-* Confirm the receipt of your report
-* Assess the vulnerability report to confirm its validity
-* Work on a fix and update the impacted versions
-* Publicly disclose the vulnerability after it has been addressed, giving credit to the reporter if they wish
+We will not take legal action against you for good-faith security research and disclosure of vulnerabilities. However, we will take legal action against anyone who intentionally exploits a vulnerability or engages in malicious activity.
 
-### Comments on this Policy
+## Security Best Practices
 
-If you have any suggestions to improve this policy, please let us know. We are committed to ensuring that our policy works effectively for everyone involved.
+To help protect your data and systems, we recommend the following security best practices:
 
-Thank you for helping to make MindsDB safer for everyone.
+- Keep your MindsDB installation up to date with the latest security patches.
+- Use strong, unique passwords for all accounts.
+- Enable two-factor authentication for all accounts.
+- Regularly back up your data.
+- Monitor your systems for any suspicious activity.
+
+## Security Updates
+
+We will provide regular security updates to address any known vulnerabilities. We will notify you of any security updates and provide instructions on how to apply them.
+
+## Contact Information
+
+If you have any questions or concerns about our security policy, please contact us at [security@mindsdb.com](mailto:security@mindsdb.com).
+
