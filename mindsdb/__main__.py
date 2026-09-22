@@ -23,17 +23,14 @@ from mindsdb.api.mysql.start import start as start_mysql
 from mindsdb.api.mongo.start import start as start_mongo
 from mindsdb.api.postgres.start import start as start_postgres
 from mindsdb.interfaces.tasks.task_monitor import start as start_tasks
-from mindsdb.utilities.ml_task_queue.consumer import start as start_ml_task_queue
 from mindsdb.interfaces.jobs.scheduler import start as start_scheduler
+from mindsdb.interfaces.ml_task_queue.consumer import start as start_ml_task_queue
 from mindsdb.utilities.config import Config
 from mindsdb.utilities.ps import is_pid_listen_port, get_child_pids
 from mindsdb.utilities.functions import args_parse, get_versions_where_predictors_become_obsolete
 from mindsdb.interfaces.database.integrations import integration_controller
 import mindsdb.interfaces.storage.db as db
-from mindsdb.integrations.utilities.install import install_dependencies
-from mindsdb.utilities.fs import create_dirs_recursive, clean_process_marks, clean_unlinked_process_marks
-from mindsdb.utilities.telemetry import telemetry_file_exists, disable_telemetry
-from mindsdb.utilities.context import context as ctx
+from mindsdb.utilities.ml_task_queue.consumer import start as start_ml_task_queue
 from mindsdb.utilities.auth import register_oauth_client, get_aws_meta_data
 
 try:
@@ -127,198 +124,14 @@ if __name__ == '__main__':
     config = Config()
     create_dirs_recursive(config['paths'])
 
-    if telemetry_file_exists(config['storage_dir']):
-        os.environ['CHECK_FOR_UPDATES'] = '0'
-        logger.info('\n x telemetry disabled! \n')
-    elif os.getenv('CHECK_FOR_UPDATES', '1').lower() in ['0', 'false', 'False'] or config.get('cloud', False):
-        disable_telemetry(config['storage_dir'])
-        logger.info('\n x telemetry disabled! \n')
-    else:
-        logger.info("✓ telemetry enabled")
-
-    if os.environ.get("FLASK_SECRET_KEY") is None:
-        os.environ["FLASK_SECRET_KEY"] = secrets.token_hex(32)
-
-    # -------------------------------------------------------
-
-    # initialization
-    db.init()
-
-    mp.freeze_support()
-    config = Config()
-
-    environment = config.get("environment")
-    if environment == "aws_marketplace":
-        try:
-            register_oauth_client()
-        except Exception as e:
-            logger.error(f"Something went wrong during client register: {e}")
-    elif environment != "local":
-        try:
-            aws_meta_data = get_aws_meta_data()
-            config.update({
-                'aws_meta_data': aws_meta_data
-            })
-        except Exception:
-            pass
-
-    is_cloud = config.get("cloud", False)
-    # need configure migration behavior by env_variables
-    # leave 'is_cloud' for now, but needs to be removed further
-    run_migration_separately = os.environ.get("SEPARATE_MIGRATIONS", False)
-    if run_migration_separately in (False, "false", "False", 0, "0", ""):
-        run_migration_separately = False
-        logger.info("Will run migrations here..")
-    else:
-        run_migration_separately = True
-        logger.info("Migrations will be run separately..")
-
-    if not is_cloud and not run_migration_separately:
-        logger.info("Applying database migrations:")
-        try:
-            from mindsdb.migrations import migrate
-            migrate.migrate_to_head()
-        except Exception as e:
-            logger.error(f"Error! Something went wrong during DB migrations: {e}")
-
-    if args.verbose is True:
-        # Figure this one out later
-        pass
-
-    if args.install_handlers is not None:
-        handlers_list = [s.strip() for s in args.install_handlers.split(",")]
-        # import_meta = handler_meta.get('import', {})
-        for handler_name, handler_meta in integration_controller.get_handlers_import_status().items():
-            if handler_name not in handlers_list:
-                continue
-            import_meta = handler_meta.get("import", {})
-            if import_meta.get("success") is True:
-                logger.info(f"{'{0: <18}'.format(handler_name)} - already installed")
-                continue
-            result = install_dependencies(import_meta.get("dependencies", []))
-            if result.get("success") is True:
-                logger.info(
-                    f"{'{0: <18}'.format(handler_name)} - successfully installed"
-                )
-            else:
-                logger.info(
-                    f"{'{0: <18}'.format(handler_name)} - error during dependencies installation: {result.get('error_message', 'unknown error')}"
-                )
-        sys.exit(0)
-
-    logger.info(f"Version: {mindsdb_version}")
-    logger.info(f"Configuration file: {config.config_path}")
-    logger.info(f"Storage path: {config['paths']['root']}")
-    logger.debug(f"User config: {user_config}")
-
-    for (
-        handler_name,
-        handler_meta,
-    ) in integration_controller.get_handlers_import_status().items():
-        import_meta = handler_meta.get("import", {})
-        if import_meta.get("success", False) is not True:
-            logger.info(
-                dedent(
-                    """
-                Some handlers cannot be imported. You can check list of available handlers by execute command in sql editor:
-                    select * from information_schema.handlers;
-            """
-                )
-            )
-            break
-    # @TODO Backwards compatibility for tests, remove later
-    for (
-        handler_name,
-        handler_meta,
-    ) in integration_controller.get_handlers_import_status().items():
-        import_meta = handler_meta.get("import", {})
-        dependencies = import_meta.get("dependencies")
-        if import_meta.get("success", False) is not True:
-            logger.debug(
-                f"Dependencies for the handler '{handler_name}' are not installed by default."
-            )
-            logger.debug(
-                f'If you want to use "{handler_name}" please "pip install mindsdb[{handler_name}]"'
-            )
-
-    # from mindsdb.utilities.fs import get_marked_processes_and_threads
-    # marks = get_marked_processes_and_threads()
-
-    if not is_cloud:
-        # region creating permanent integrations
-        for (
-            integration_name,
-            handler,
-        ) in integration_controller.get_handlers_import_status().items():
-            if handler.get("permanent"):
-                integration_meta = integration_controller.get(name=integration_name)
-                if integration_meta is None:
-                    integration_record = db.Integration(
-                        name=integration_name,
-                        data={},
-                        engine=integration_name,
-                        company_id=None,
-                    )
-                    db.session.add(integration_record)
-                    db.session.commit()
-        # endregion
-
-        # region Mark old predictors as outdated
-        is_modified = False
-        predictor_records = (
-            db.session.query(db.Predictor)
-            .filter(db.Predictor.deleted_at.is_(None))
-            .all()
-        )
-        if len(predictor_records) > 0:
-            (
-                sucess,
-                compatible_versions,
-            ) = get_versions_where_predictors_become_obsolete()
-            if sucess is True:
-                compatible_versions = [version.parse(x) for x in compatible_versions]
-                mindsdb_version_parsed = version.parse(mindsdb_version)
-                compatible_versions = [x for x in compatible_versions if x <= mindsdb_version_parsed]
-                if len(compatible_versions) > 0:
-                    last_compatible_version = compatible_versions[-1]
-                    for predictor_record in predictor_records:
-                        if (
-                            isinstance(predictor_record.mindsdb_version, str)
-                            and version.parse(predictor_record.mindsdb_version) < last_compatible_version
-                        ):
-                            predictor_record.update_status = "available"
-                            is_modified = True
-        if is_modified is True:
-            db.session.commit()
-        # endregion
-
-    if args.api is None:  # If "--api" option is not specified, start the default APIs
-        api_arr = ['http', 'mysql']
-    elif args.api == "":  # If "--api=" (blank) is specified, don't start any APIs
-        api_arr = []
-    else:  # The user has provided a list of APIs to start
-        api_arr = args.api.split(',')
-
-    apis = {
-        api: {
-            'port': config['api'][api]['port'],
-            'process': None,
-            'started': False
-        } for api in api_arr
-    }
-
-    start_functions = {
-        'http': start_http,
-        'mysql': start_mysql,
-        'mongodb': start_mongo,
-        'postgres': start_postgres,
-        'jobs': start_scheduler,
-        'tasks': start_tasks,
-        'ml_task_queue': start_ml_task_queue
-    }
+    if telemetry_file_exists():
+        disable_telemetry()
 
     if config.get("jobs", {}).get("disable") is not True:
-        apis["jobs"] = {"process": None, "started": False}
+        apis["jobs"] = {
+            'process': None,
+            'started': False
+        }
 
     # disabled on cloud
     if config.get('tasks', {}).get('disable') is not True:
@@ -401,3 +214,4 @@ if __name__ == '__main__':
 
     ioloop.run_until_complete(gather_apis())
     ioloop.close()
+
