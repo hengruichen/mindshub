@@ -102,110 +102,9 @@ PACKAGE_NAME_MAP = {
     "sqlalchemy-redshift": ["redshift_sqlalchemy"],
     "sqlalchemy-vertica-python": ["sqla_vertica_python"],
     "grpcio-tools": ["grpc"],
-    "psycopg2-binary": ["psycopg2"],
-    "psycopg-binary": ["psycopg"],
-    "pymongo": ["pymongo", "bson"],
-    "python-multipart": ["multipart"],
-    "pydateinfer": ["dateinfer"],
-    "scikit-learn": ["sklearn"],
-    "influxdb3-python": ["influxdb_client_3"],
-    "hubspot-api-client": ["hubspot"],
-    "pytest-lazy-fixture": ["pytest_lazyfixture"],
-    "eventbrite-python": ["eventbrite"],
-    "python-magic": ["magic"],
-    "clickhouse-sqlalchemy": ["clickhouse_sqlalchemy"],
-    "pillow": ["PIL"],
-    "auto-ts": ["auto_ts"],
-}
-
-# We use this to exit with a non-zero status code if any check fails
-# so that when this is running in CI the job will fail
-success = True
-
-
-def print_errors(file, errors):
-    global success
-    if len(errors) > 0:
-        success = False
-        print(f"- {file}")
-        for line in errors:
-            print("    " + line)
-        print()
-
-
-def get_ignores_str(ignores_dict):
-    """Get a list of rule ignores for deptry"""
-
-    return ",".join([f"{k}={'|'.join(v)}" for k, v in ignores_dict.items()])
-
-
-def run_deptry(reqs, rule_ignores, path, extra_args=""):
-    """Run a dependency check with deptry. Return a list of error messages"""
-
-    errors = []
-    try:
-        result = subprocess.run(
-            f"deptry -o deptry.json --no-ansi --known-first-party mindsdb --requirements-txt \"{reqs}\" --per-rule-ignores \"{rule_ignores}\" --package-module-name-map \"{get_ignores_str(PACKAGE_NAME_MAP)}\" {extra_args} {path}",
-            shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE
-        )
-        if result.returncode != 0 and not os.path.exists("deptry.json"):
-            # There was some issue with running deptry
-            errors.append(f"Error running deptry: {result.stderr.decode('utf-8')}")
-
-        with open("deptry.json", "r") as f:
-            deptry_results = json.loads(f.read())
-        for r in deptry_results:
-            errors.append(
-                f"{r['location']['line']}:{r['location']['column']}: {r['error']['code']} {r['error']['message']}")
-    finally:
-        if os.path.exists("deptry.json"):
-            os.remove("deptry.json")
-    return errors
-
-
-def check_for_requirements_duplicates():
-    """Checks that handler requirements.txt and the main requirements.txt don't contain any of the same packages"""
-
-    global success
-    main_reqs = get_requirements_from_file(MAIN_REQS_PATH)
-
-    for file in HANDLER_REQS_PATHS:
-        handler_reqs = get_requirements_from_file(file)
-
-        for req in handler_reqs:
-            if req in main_reqs:
-                print(f"{req} is in {file} and also in main requirements file.")
-                success = False
-
-
-def check_relative_reqs():
-    """
-    Check that relationships between handlers are defined correctly.
-
-    If a parent handler imports another handler in code, we should define that dependency
-    in the parent handler's requirements.txt like:
-
-    -R mindsdb/integrations/handlers/child_handler/requirements.txt
-
-    This is important to ensure that "pip install mindsdb[parent_handler]" works correctly.
-    This function checks that for each handler imported from another handler, there is a
-    corresponding entry in a requirements.txt.
-    """
-
-    global success
-    # regex for finding relative imports of handlers like "from ..file_handler import FileHandler"
-    # we're going to treat these as errors (and suggest using absolute imports instead)
-    relative_import_pattern = re.compile("(?:\s|^)(?:from|import) \.\.\w+_handler")  # noqa: W605
-
-    def get_relative_requirements(files):
-        """Find entries in a requirements.txt that are including another requirements.txt"""
-        entries = []
-        for file in files:
-            with open(file, 'r') as fh:
-                for line in fh.readlines():
-                    line = line.lower().strip()
-                    if line.startswith("-r mindsdb/integrations/handlers/"):
-                        entries.append(line.split("mindsdb/integrations/handlers/")[1].split("/")[0])  # just return
+    "psycopg2-b
+# ... [truncated] ...
+append(line.split("mindsdb/integrations/handlers/")[1].split("/")[0])  # just return
                         # the handler name
 
         return entries
@@ -297,3 +196,4 @@ print("--- Checking handlers that require other handlers ---")
 check_relative_reqs()
 
 sys.exit(0 if success else 1)
+
